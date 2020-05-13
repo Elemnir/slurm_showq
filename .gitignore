@@ -1,0 +1,5 @@
+*.o
+*.swp
+a.out
+showq
+test.sh
