@@ -28,23 +28,23 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
     
     // Load partition, node, and job information
-    partition_info_msg_t *part_buffer_ptr = NULL;
-    node_info_msg_t *node_buffer_ptr = NULL;
-    job_info_msg_t *job_buffer_ptr = NULL;
-    if(slurm_load_partitions( (time_t) NULL, &part_buffer_ptr, SHOW_ALL)
-            || slurm_load_node( (time_t) NULL, &node_buffer_ptr, SHOW_ALL)
-            || slurm_load_jobs( (time_t) NULL, &job_buffer_ptr, SHOW_ALL) ) {
+    partition_info_msg_t *part_buffer_ptr = nullptr;
+    node_info_msg_t *node_buffer_ptr = nullptr;
+    job_info_msg_t *job_buffer_ptr = nullptr;
+    if(slurm_load_partitions( (time_t) nullptr, &part_buffer_ptr, SHOW_ALL)
+            || slurm_load_node( (time_t) nullptr, &node_buffer_ptr, SHOW_ALL)
+            || slurm_load_jobs( (time_t) nullptr, &job_buffer_ptr, SHOW_ALL) ) {
         std::cerr << "Unable to query Slurm information" << std::endl;
-        exit(3);
+        return 3;
     }
     
-    // Sort jobs into running, idle, blocked, and complete
+    // Filter and sort the jobs
     std::vector<job_info_t *> jobs_running, jobs_idle, jobs_blocked, jobs_complete;
     for (int i = 0; i < job_buffer_ptr->record_count; i++) {
         job_info_t * job_ptr = &job_buffer_ptr->job_array[i];
         
         // If a filter is defined and doesn't hit, skip this job 
-        struct passwd *pw = getpwuid(job_ptr->user_id);
+        passwd *pw = getpwuid(job_ptr->user_id);
         std::string job_user = (pw) ? std::string(pw->pw_name) : "";
         if (username != "" && username != job_user) continue;
         
@@ -56,27 +56,27 @@ int main(int argc, char** argv) {
             continue;
         }
 
+        // Sort jobs into running, idle, blocked, and completed
         if (job_ptr->job_state == JOB_RUNNING) {
             jobs_running.push_back(job_ptr);
         } else if (job_ptr->job_state & JOB_COMPLETING) {
             jobs_complete.push_back(job_ptr);
+        } else if (job_ptr->state_reason == WAIT_DEPENDENCY
+                || job_ptr->state_reason == WAIT_HELD
+                || job_ptr->state_reason == WAIT_TIME           
+                || job_ptr->state_reason == WAIT_ASSOC_JOB_LIMIT          
+                || job_ptr->state_reason == WAIT_QOS_MAX_CPU_PER_JOB
+                || job_ptr->state_reason == WAIT_QOS_MAX_CPU_MINS_PER_JOB 
+                || job_ptr->state_reason == WAIT_QOS_MAX_NODE_PER_JOB
+                || job_ptr->state_reason == WAIT_QOS_MAX_WALL_PER_JOB
+                || job_ptr->state_reason == WAIT_HELD_USER) {
+            jobs_blocked.push_back(job_ptr);
         } else {
-            if (job_ptr->state_reason == WAIT_DEPENDENCY
-                    || job_ptr->state_reason == WAIT_HELD
-                    || job_ptr->state_reason == WAIT_TIME           
-                    || job_ptr->state_reason == WAIT_ASSOC_JOB_LIMIT          
-                    || job_ptr->state_reason == WAIT_QOS_MAX_CPU_PER_JOB
-                    || job_ptr->state_reason == WAIT_QOS_MAX_CPU_MINS_PER_JOB 
-                    || job_ptr->state_reason == WAIT_QOS_MAX_NODE_PER_JOB
-                    || job_ptr->state_reason == WAIT_QOS_MAX_WALL_PER_JOB
-                    || job_ptr->state_reason == WAIT_HELD_USER) {
-                jobs_blocked.push_back(job_ptr);
-            } else {
-                jobs_idle.push_back(job_ptr);
-            }
+            jobs_idle.push_back(job_ptr);
         }
     }
     
+    // Print the requested report
     if (summary) {
         std::cout << "\nactive jobs: " << jobs_running.size() << "  eligible jobs: " 
             << jobs_idle.size() << "  blocked jobs: " << jobs_blocked.size() << "\n\nTotal jobs: "
