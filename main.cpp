@@ -24,6 +24,7 @@ std::string gid2name(unsigned int gid) {
     return (gp) ? std::string(gp->gr_name) : std::to_string(gid);
 }
 
+
 const char* state2cstr(unsigned int state) {
     switch(state) {
         case JOB_PENDING: return "Idle";
@@ -43,20 +44,27 @@ const char* state2cstr(unsigned int state) {
 }
 
 
-std::string calc_duration( const time_t end, const time_t begin) {
+std::string timestamp2str(time_t t) {
+    std::string raw(std::ctime(&t));
+    return raw.substr(0, raw.size() - 6);
+}
+
+
+std::string duration2str(unsigned int dur_sec) {
     std::stringstream ss;
-    int dur_sec = std::difftime(end, begin);
-    int dur_min = dur_sec / 60;
-    int dur_hrs = dur_min / 60;
-    int dur_day = dur_hrs / 24;
-    ss << dur_day << ':' << dur_hrs % 24 << ':' << dur_min % 60 << ':' << dur_sec % 60;
+    if (dur_sec / 60 / 60 / 24 > 0) {
+        ss << (dur_sec / 60 / 60 / 24) << ':';
+    }
+    ss << std::setw(2) << (dur_sec / 60 / 60) % 24 << ':'
+       << std::setw(2) << std::setfill('0') << (dur_sec / 60) % 60 << ':' 
+       << std::setw(2) << std::setfill('0') << (dur_sec) % 60;
     return ss.str();
 }
 
 
 double calc_xfactor(job_info_t *j) {
     time_t until = (j->job_state == JOB_PENDING) ? std::time(nullptr) : j->start_time;
-    return std::max(1.0, std::difftime(until, j->eligible_time) / j->time_limit);
+    return std::max(1.0, std::difftime(until, j->eligible_time) / (j->time_limit * 60));
 }
 
 
@@ -75,7 +83,7 @@ int main(int argc, char** argv) {
     app.add_option("-u,--username", username, "Show jobs for a specific user");
     app.add_option("-p,--partition", partition, "Show jobs for a specific partition");
     app.add_option("-R,--reservation", reservation, "Show jobs for a specific reservation");
-    app.add_option("-w,--where", where_clause, "Show jobs for a specific partition");
+    //app.add_option("-w,--where", where_clause, "");
     CLI11_PARSE(app, argc, argv);
     
     // Load partition, node, and job information
@@ -110,25 +118,26 @@ int main(int argc, char** argv) {
         // Sort jobs into running, idle, blocked, and completed
         if (job_ptr->job_state == JOB_RUNNING) {
             jobs_running.push_back(job_ptr);
-        } else if (job_ptr->job_state & JOB_COMPLETING) {
-            jobs_complete.push_back(job_ptr);
-        } else if (job_ptr->state_reason == WAIT_DEPENDENCY
-                || job_ptr->state_reason == WAIT_HELD
-                || job_ptr->state_reason == WAIT_TIME           
-                || job_ptr->state_reason == WAIT_ASSOC_JOB_LIMIT          
-                || job_ptr->state_reason == WAIT_QOS_MAX_CPU_PER_JOB
-                || job_ptr->state_reason == WAIT_QOS_MAX_CPU_MINS_PER_JOB 
-                || job_ptr->state_reason == WAIT_QOS_MAX_NODE_PER_JOB
-                || job_ptr->state_reason == WAIT_QOS_MAX_WALL_PER_JOB
-                || job_ptr->state_reason == WAIT_HELD_USER) {
-            jobs_blocked.push_back(job_ptr);
+        } else if (job_ptr->job_state == JOB_PENDING) {
+            if (job_ptr->state_reason == WAIT_DEPENDENCY
+                    || job_ptr->state_reason == WAIT_HELD
+                    || job_ptr->state_reason == WAIT_TIME           
+                    || job_ptr->state_reason == WAIT_ASSOC_JOB_LIMIT          
+                    || job_ptr->state_reason == WAIT_QOS_MAX_CPU_PER_JOB
+                    || job_ptr->state_reason == WAIT_QOS_MAX_CPU_MINS_PER_JOB 
+                    || job_ptr->state_reason == WAIT_QOS_MAX_NODE_PER_JOB
+                    || job_ptr->state_reason == WAIT_QOS_MAX_WALL_PER_JOB
+                    || job_ptr->state_reason == WAIT_HELD_USER) {
+                jobs_blocked.push_back(job_ptr);
+            } else {
+                jobs_idle.push_back(job_ptr);
+            }
         } else {
-            jobs_idle.push_back(job_ptr);
+            jobs_complete.push_back(job_ptr);
         }
     }
     
     // Print the requested report
-    char part_buf[4] = "   ";
     if (summary) {
         std::cout << "\nactive jobs: " << jobs_running.size() << "  eligible jobs: " 
             << jobs_idle.size() << "  blocked jobs: " << jobs_blocked.size() << "\n\nTotal jobs: "
@@ -136,13 +145,13 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (completed) {
-        printf("\n\ncompleted jobs---------------------\n");
-        printf("%-19s %-10s %-6s %3s %7s %2s %9s %9s %16s %5s %11s %21s\n\n", 
+        printf("\ncompleted jobs---------------------\n");
+        printf("%-19s %-10s %-6s %3s %7s %2s %9s %9s %16s %5s %11s  %21s\n\n", 
             "JOBID", "STATUS", "CCODE", "PAR", "XFACTOR", "Q", "USERNAME", "GROUP", 
             "MHOST", "PROCS", "WALLTIME", "COMPLETIONTIME"
         );
         for (job_info_t* ji : jobs_complete) {
-            printf("%-19d %-10s %-6d %3s %7.1f %2s %9s %9s %16s %5d %11s %21s\n", 
+            printf("%-19d %-10s %-6d %3s %7.1f %2s %9s %9s %16s %5d %11s  %21s\n", 
                 ji->job_id, 
                 state2cstr(ji->job_state), 
                 ji->exit_code, 
@@ -153,24 +162,133 @@ int main(int argc, char** argv) {
                 gid2name(ji->group_id).c_str(), 
                 ji->batch_host,
                 ji->num_tasks,
-                calc_duration(ji->end_time, ji->start_time).c_str(),
-                std::ctime(&(ji->end_time))
+                duration2str(std::difftime(ji->end_time, ji->start_time)).c_str(),
+                timestamp2str(ji->end_time).c_str()
             );
         }
-        std::cout << "\ncompleted jobs: " << jobs_complete.size() << "\n\nTotal jobs: " 
+        std::cout << '\n' << jobs_complete.size() << " completed jobs\n\nTotal jobs: " 
             << jobs_complete.size() << "\n\n";
         return 0;
     } 
     if (running) {
-        // wanna
+        printf("\nactive jobs------------------------\n");
+        printf("%-19s %-10s %3s %7s %2s %9s %9s %16s %5s %11s  %21s\n\n", 
+            "JOBID", "STATUS", "PAR", "XFACTOR", "Q", "USERNAME", "GROUP", 
+            "MHOST", "PROCS", "REMAINING", "STARTTIME"
+        );
+        for (job_info_t* ji : jobs_running) {
+            printf("%-19d %-10s %3s %7.1f %2s %9s %9s %16s %5d %11s  %21s\n", 
+                ji->job_id, 
+                state2cstr(ji->job_state),
+                std::string(ji->partition).substr(0,3).c_str(), 
+                calc_xfactor(ji),
+                std::string(ji->qos).substr(0,2).c_str(), 
+                uid2name(ji->user_id).c_str(), 
+                gid2name(ji->group_id).c_str(), 
+                ji->batch_host,
+                ji->num_tasks,
+                duration2str(std::difftime(ji->end_time, std::time(nullptr))).c_str(),
+                timestamp2str(ji->start_time).c_str()
+            );
+        }
+        std::cout << '\n' << jobs_running.size() << " active jobs\n\nTotal jobs: " 
+            << jobs_running.size() << "\n\n";
+        return 0;
     } 
     if (idle) {
-        // write
+        printf("\neligible jobs----------------------\n");
+        printf("%-19s %10s %3s %7s %2s %9s %9s %5s %11s  %21s\n\n", 
+            "JOBID", "PRIORITY", "PAR", "XFACTOR", "Q", "USERNAME", "GROUP", 
+            "PROCS", "WCLIMIT", "SYSTEMQUEUETIME"
+        );
+        for (job_info_t* ji : jobs_idle) {
+            printf("%-19d %10d %3s %7.1f %2s %9s %9s %5d %11s  %21s\n", 
+                ji->job_id, 
+                ji->priority,  
+                std::string(ji->partition).substr(0,3).c_str(), 
+                calc_xfactor(ji),
+                std::string(ji->qos).substr(0,2).c_str(), 
+                uid2name(ji->user_id).c_str(), 
+                gid2name(ji->group_id).c_str(), 
+                ji->num_tasks,
+                duration2str(ji->time_limit * 60).c_str(),
+                timestamp2str(ji->submit_time).c_str()
+            );
+        }
+        std::cout << '\n' << jobs_idle.size() << " eligible jobs\n\nTotal jobs: " 
+            << jobs_idle.size() << "\n\n";
+        return 0;
+
     } 
     if (blocking) {
-        // these
-    }
+        printf("\nblocked jobs-----------------------\n");
+        printf("%-18s %8s %8s %10s %5s %11s  %21s\n\n",
+            "JOBID", "USERNAME", "GROUP", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
+        );
+        for (job_info_t *ji : jobs_blocked) {
+            printf("%-18d %8s %8s %10s %5d %11s  %21s\n",
+                ji->job_id,
+                uid2name(ji->user_id).c_str(),
+                gid2name(ji->group_id).c_str(),
+                state2cstr(ji->job_state),
+                ji->num_tasks,
+                duration2str(ji->time_limit * 60).c_str(),
+                timestamp2str(ji->submit_time).c_str()
+            );
+        }
+        std::cout << '\n' << jobs_blocked.size() << " blocked jobs\n\nTotal jobs: " 
+            << jobs_blocked.size() << "\n\n";
+        return 0;
 
-    // parts...
+    }
+    
+    printf("\nactive jobs------------------------\n");
+    printf("%-18s %8s %10s %5s %11s  %21s\n\n", 
+        "JOBID", "USERNAME", "STATE", "PROCS", "REMAINING", "STARTTIME"
+    ); 
+    for (job_info_t *ji : jobs_running) {
+        printf("%-18d %8s %10s %5d %11s  %21s\n", 
+            ji->job_id, 
+            uid2name(ji->user_id).c_str(),
+            state2cstr(ji->job_state),
+            ji->num_tasks,
+            duration2str(std::difftime(ji->end_time, std::time(nullptr))).c_str(),
+            timestamp2str(ji->start_time).c_str()
+        );
+    }
+    std::cout << '\n' << jobs_running.size() << " active jobs";
+    
+    printf("\n\neligible jobs----------------------\n");
+    printf("%-18s %8s %10s %5s %11s  %21s\n\n", 
+        "JOBID", "USERNAME", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
+    ); 
+    for (job_info_t *ji : jobs_idle) {
+        printf("%-18d %8s %10s %5d %11s  %21s\n", 
+            ji->job_id, 
+            uid2name(ji->user_id).c_str(),
+            state2cstr(ji->job_state),
+            ji->num_tasks,
+            duration2str(ji->time_limit * 60).c_str(),
+            timestamp2str(ji->submit_time).c_str()
+        );
+    }
+    std::cout << '\n' << jobs_idle.size() << " eligible jobs";
+
+    printf("\n\nblocked jobs-----------------------\n");
+    printf("%-18s %8s %10s %5s %11s  %21s\n\n", 
+        "JOBID", "USERNAME", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
+    ); 
+    for (job_info_t *ji : jobs_blocked) {
+        printf("%-18d %8s %10s %5d %11s  %21s\n", 
+            ji->job_id, 
+            uid2name(ji->user_id).c_str(),
+            state2cstr(ji->job_state),
+            ji->num_tasks,
+            duration2str(ji->time_limit * 60).c_str(),
+            timestamp2str(ji->submit_time).c_str()
+        );
+    }
+    std::cout << '\n' << jobs_blocked.size() << " blocked jobs\n\nTotal jobs: " 
+        << jobs_blocked.size() + jobs_idle.size() + jobs_running.size() << "\n\n";
     return 0;
 }
