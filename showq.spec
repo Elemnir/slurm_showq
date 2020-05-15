@@ -1,5 +1,5 @@
 Name:	    slurm-showq
-Version:	0.0.1
+Version:	0.0.2
 Release:	1%{?dist}
 Summary:	A Slurm-compatible implementation of Maui's showq command.
 
@@ -7,7 +7,7 @@ License:	GPLv3+
 URL:		https://github.com/Elemnir/slurm_showq
 
 %global slurm_showq_source_dir slurm_showq-%{version}
-Source:     %{slurm_showq_source_dir}.tar.bz2
+Source:     %{slurm_showq_source_dir}.tar.gz
 
 BuildRequires:	gcc-c++ slurm-devel
 Requires:   libstdc++ slurm
