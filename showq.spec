@@ -7,7 +7,7 @@ License:	GPLv3+
 URL:		https://github.com/Elemnir/slurm_showq
 
 %global slurm_showq_source_dir slurm_showq-%{version}
-Source:     %{slurm_showq_source_dir}.tar.bz2
+Source:     %{slurm_showq_source_dir}.tar.gz
 
 BuildRequires:	gcc-c++ slurm-devel
 Requires:   libstdc++ slurm
