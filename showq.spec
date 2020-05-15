@@ -6,7 +6,7 @@ Summary:	A Slurm-compatible implementation of Maui's showq command.
 License:	GPLv3+
 URL:		https://github.com/Elemnir/slurm_showq
 
-%global slurm_showq_source_dir %{name}-%{version}
+%global slurm_showq_source_dir slurm_showq-%{version}
 Source:     %{slurm_showq_source_dir}.tar.bz2
 
 BuildRequires:	gcc-c++ slurm-devel
