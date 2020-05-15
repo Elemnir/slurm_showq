@@ -50,12 +50,16 @@ std::string timestamp2str(time_t t) {
 }
 
 
-std::string duration2str(unsigned int dur_sec) {
+std::string duration2str(int dur_sec) {
     std::stringstream ss;
-    if (dur_sec / 60 / 60 / 24 > 0) {
-        ss << (dur_sec / 60 / 60 / 24) << ':';
+    if (dur_sec < 0) {
+        dur_sec = -dur_sec;
+        ss << '-';
     }
-    ss << std::setw(2) << (dur_sec / 60 / 60) % 24 << ':'
+    if (dur_sec / 60 / 60 / 24 > 0) {
+        ss << (dur_sec / 60 / 60 / 24) << ':' << std::setw(2);
+    }
+    ss << (dur_sec / 60 / 60) % 24 << ':'
        << std::setw(2) << std::setfill('0') << (dur_sec / 60) % 60 << ':' 
        << std::setw(2) << std::setfill('0') << (dur_sec) % 60;
     return ss.str();
@@ -151,7 +155,7 @@ int main(int argc, char** argv) {
             "MHOST", "PROCS", "WALLTIME", "COMPLETIONTIME"
         );
         for (job_info_t* ji : jobs_complete) {
-            printf("%-19d %-10s %-6d %3s %7.1f %2s %9s %9s %16s %5d %11s  %21s\n", 
+            printf("%-19u %-10s %-6u %3s %7.1f %2s %9s %9s %16s %5u %11s  %21s\n", 
                 ji->job_id, 
                 state2cstr(ji->job_state), 
                 ji->exit_code, 
@@ -177,7 +181,7 @@ int main(int argc, char** argv) {
             "MHOST", "PROCS", "REMAINING", "STARTTIME"
         );
         for (job_info_t* ji : jobs_running) {
-            printf("%-19d %-10s %3s %7.1f %2s %9s %9s %16s %5d %11s  %21s\n", 
+            printf("%-19u %-10s %3s %7.1f %2s %9s %9s %16s %5u %11s  %21s\n", 
                 ji->job_id, 
                 state2cstr(ji->job_state),
                 std::string(ji->partition).substr(0,3).c_str(), 
@@ -202,7 +206,7 @@ int main(int argc, char** argv) {
             "PROCS", "WCLIMIT", "SYSTEMQUEUETIME"
         );
         for (job_info_t* ji : jobs_idle) {
-            printf("%-19d %10d %3s %7.1f %2s %9s %9s %5d %11s  %21s\n", 
+            printf("%-19u %10u %3s %7.1f %2s %9s %9s %5u %11s  %21s\n", 
                 ji->job_id, 
                 ji->priority,  
                 std::string(ji->partition).substr(0,3).c_str(), 
@@ -226,7 +230,7 @@ int main(int argc, char** argv) {
             "JOBID", "USERNAME", "GROUP", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
         );
         for (job_info_t *ji : jobs_blocked) {
-            printf("%-18d %8s %8s %10s %5d %11s  %21s\n",
+            printf("%-18u %8s %8s %10s %5u %11s  %21s\n",
                 ji->job_id,
                 uid2name(ji->user_id).c_str(),
                 gid2name(ji->group_id).c_str(),
@@ -247,7 +251,7 @@ int main(int argc, char** argv) {
         "JOBID", "USERNAME", "STATE", "PROCS", "REMAINING", "STARTTIME"
     ); 
     for (job_info_t *ji : jobs_running) {
-        printf("%-18d %8s %10s %5d %11s  %21s\n", 
+        printf("%-18u %8s %10s %5u %11s  %21s\n", 
             ji->job_id, 
             uid2name(ji->user_id).c_str(),
             state2cstr(ji->job_state),
@@ -263,7 +267,7 @@ int main(int argc, char** argv) {
         "JOBID", "USERNAME", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
     ); 
     for (job_info_t *ji : jobs_idle) {
-        printf("%-18d %8s %10s %5d %11s  %21s\n", 
+        printf("%-18u %8s %10s %5u %11s  %21s\n", 
             ji->job_id, 
             uid2name(ji->user_id).c_str(),
             state2cstr(ji->job_state),
@@ -279,7 +283,7 @@ int main(int argc, char** argv) {
         "JOBID", "USERNAME", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
     ); 
     for (job_info_t *ji : jobs_blocked) {
-        printf("%-18d %8s %10s %5d %11s  %21s\n", 
+        printf("%-18u %8s %10s %5u %11s  %21s\n", 
             ji->job_id, 
             uid2name(ji->user_id).c_str(),
             state2cstr(ji->job_state),
