@@ -103,6 +103,7 @@ int main(int argc, char** argv) {
     
     // Filter and sort the jobs
     std::vector<job_info_t *> jobs_running, jobs_idle, jobs_blocked, jobs_complete;
+    hostlist_t running_nodes = slurm_hostlist_create("");
     for (int i = 0; i < job_buffer_ptr->record_count; i++) {
         job_info_t * job_ptr = &job_buffer_ptr->job_array[i];
         
@@ -122,6 +123,7 @@ int main(int argc, char** argv) {
         // Sort jobs into running, idle, blocked, and completed
         if (job_ptr->job_state == JOB_RUNNING) {
             jobs_running.push_back(job_ptr);
+            slurm_hostlist_push(running_nodes, job_ptr->nodes);
         } else if (job_ptr->job_state == JOB_PENDING) {
             if (job_ptr->state_reason == WAIT_DEPENDENCY
                     || job_ptr->state_reason == WAIT_HELD
@@ -141,6 +143,23 @@ int main(int argc, char** argv) {
         }
     }
     
+    // Figure out how many 
+    hostlist_t partition_nodes = slurm_hostlist_create("");
+    for (int i = 0; i < part_buffer_ptr->record_count; i++) {
+        partition_info_t *part_ptr = &part_buffer_ptr->partition_array[i];
+        if (partition != "" && std::string(part_ptr->name).find(partition) == std::string::npos) {
+            continue;
+        }
+        slurm_hostlist_push(partition_nodes, part_ptr->nodes);
+    }
+
+    slurm_hostlist_uniq(running_nodes);
+    slurm_hostlist_uniq(partition_nodes);
+    int running_nodes_count = slurm_hostlist_count(running_nodes);
+    int partition_nodes_count = slurm_hostlist_count(partition_nodes);
+    printf("Running: %s\n", slurm_hostlist_ranged_string_malloc(running_nodes));
+    printf("All:     %s\n", slurm_hostlist_ranged_string_malloc(partition_nodes));
+
     // Print the requested report
     if (summary) {
         std::cout << "\nactive jobs: " << jobs_running.size() << "  eligible jobs: " 
@@ -195,8 +214,10 @@ int main(int argc, char** argv) {
                 timestamp2str(ji->start_time).c_str()
             );
         }
-        std::cout << '\n' << jobs_running.size() << " active jobs\n\nTotal jobs: " 
-            << jobs_running.size() << "\n\n";
+        std::cout << '\n' << jobs_running.size() << " active jobs\t\t" << running_nodes_count
+            << " of " << partition_nodes_count << " nodes active      (" << std::setprecision(2)
+            << static_cast<double>(running_nodes_count) / partition_nodes_count * 100 << "%)"
+            << "\n\nTotal jobs: " << jobs_running.size() << "\n\n";
         return 0;
     } 
     if (idle) {
@@ -260,7 +281,10 @@ int main(int argc, char** argv) {
             timestamp2str(ji->start_time).c_str()
         );
     }
-    std::cout << '\n' << jobs_running.size() << " active jobs";
+    std::cout << '\n' << jobs_running.size() << " active jobs\t\t" << running_nodes_count
+            << " of " << partition_nodes_count << " nodes active      (" << std::setprecision(2)
+            << static_cast<double>(running_nodes_count) / partition_nodes_count * 100 << "%)";
+
     
     printf("\n\neligible jobs----------------------\n");
     printf("%-18s %8s %10s %5s %11s  %21s\n\n", 

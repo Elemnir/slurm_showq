@@ -1,5 +1,5 @@
 Name:	    slurm-showq
-Version:	0.0.2
+Version:	0.0.3
 Release:	1%{?dist}
 Summary:	A Slurm-compatible implementation of Maui's showq command.
 
@@ -31,7 +31,3 @@ install -m 0755 showq %{buildroot}/%{_bindir}/showq
 %files
 %{_bindir}/showq
 
-
-%changelog
-* Fri May 15 2020 Adam Howard <ahoward@utk.edu> - 0.0.1-1
-- Initial release
