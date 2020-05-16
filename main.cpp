@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
         }
     }
     
-    // Figure out how many 
+    // Collect nodes in the relevant partition(s) for utilization stats
     hostlist_t partition_nodes = slurm_hostlist_create("");
     for (int i = 0; i < part_buffer_ptr->record_count; i++) {
         partition_info_t *part_ptr = &part_buffer_ptr->partition_array[i];
@@ -157,8 +157,6 @@ int main(int argc, char** argv) {
     slurm_hostlist_uniq(partition_nodes);
     int running_nodes_count = slurm_hostlist_count(running_nodes);
     int partition_nodes_count = slurm_hostlist_count(partition_nodes);
-    printf("Running: %s\n", slurm_hostlist_ranged_string_malloc(running_nodes));
-    printf("All:     %s\n", slurm_hostlist_ranged_string_malloc(partition_nodes));
 
     // Print the requested report
     if (summary) {
