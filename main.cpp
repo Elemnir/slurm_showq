@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
     app.add_option("-g,--group", groupname, "Show jobs for a specific group");
     app.add_option("-a,--account", account, "Show jobs for a specific account");
     app.add_option("-p,--partition", partition, "Show jobs for a specific partition");
-    app.add_option("-q,--qos", qosname, "Show jobs for a specific qos");
+    app.add_option("-q,--qos", qosname, "Show jobs for a specific QoS");
     app.add_option("-R,--reservation", reservation, "Show jobs for a specific reservation");
     //app.add_option("-w,--where", where_clause, "");
     CLI11_PARSE(app, argc, argv);

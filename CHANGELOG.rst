@@ -2,6 +2,11 @@
  slurm_showq Changelog
 =======================
 
+Version 0.0.4
+-------------
+
+- Adding more filters for group, account, and QoS
+
 Version 0.0.3
 -------------
 
