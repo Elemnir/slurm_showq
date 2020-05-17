@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
     // Define and set up the cli flags and options for controlling the printing
     CLI::App app{"A Slurm-compatible implementation of Maui's showq."};
     bool blocking = false, idle = false, running = false, completed = false, summary = false;
-    std::string partition = "", reservation = "", username = "", where_clause = "";
+    std::string partition, reservation, username, groupname, account, qosname;
     
     app.add_flag("-b,--blocking", blocking, "Show blocked jobs");
     app.add_flag("-i,--idle", idle, "Show idle jobs");
@@ -85,7 +85,10 @@ int main(int argc, char** argv) {
     app.add_flag("-c,--completed", completed, "Show completed jobs");
     app.add_flag("-s,--summary", summary, "Show workload summary");
     app.add_option("-u,--username", username, "Show jobs for a specific user");
+    app.add_option("-g,--group", groupname, "Show jobs for a specific group");
+    app.add_option("-a,--account", account, "Show jobs for a specific account");
     app.add_option("-p,--partition", partition, "Show jobs for a specific partition");
+    app.add_option("-q,--qos", qosname, "Show jobs for a specific qos");
     app.add_option("-R,--reservation", reservation, "Show jobs for a specific reservation");
     //app.add_option("-w,--where", where_clause, "");
     CLI11_PARSE(app, argc, argv);
@@ -108,9 +111,10 @@ int main(int argc, char** argv) {
         job_info_t * job_ptr = &job_buffer_ptr->job_array[i];
         
         // If a filter is defined and doesn't hit, skip this job 
-        if (username != "" && username != uid2name(job_ptr->user_id)) { 
-            continue;
-        }
+        if (username != "" && username != uid2name(job_ptr->user_id)) continue;
+        if (groupname != "" && groupname != gid2name(job_ptr->group_id)) continue;
+        if (account != "" && account != std::string(job_ptr->account)) continue;
+        if (qosname != "" && qosname != std::string(job_ptr->qos)) continue;
         
         if (partition != "" && std::string(job_ptr->partition).find(partition) == std::string::npos) {
             continue;
