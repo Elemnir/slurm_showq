@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <ctime>
 #include <iostream>
@@ -77,20 +79,23 @@ int main(int argc, char** argv) {
     // Define and set up the cli flags and options for controlling the printing
     CLI::App app{"A Slurm-compatible implementation of Maui's showq."};
     bool blocking = false, idle = false, running = false, completed = false, summary = false;
-    std::string partition, reservation, username, groupname, account, qosname;
-    
+    std::string partition, reservation, username, groupname, account, qosname, orderby;
+    auto order_validator = CLI::IsMember(
+        {"REMAINING", "REVERSEREMAINING", "JOB", "USER", "STARTTIME"}, CLI::ignore_case
+    );
+
     app.add_flag("-b,--blocking", blocking, "Show blocked jobs");
     app.add_flag("-i,--idle", idle, "Show idle jobs");
     app.add_flag("-r,--running", running, "Show running jobs");
     app.add_flag("-c,--completed", completed, "Show completed jobs");
     app.add_flag("-s,--summary", summary, "Show workload summary");
+    app.add_option("-o,--orderby", orderby, "Sort running jobs by a specific attribute")->check(order_validator);
     app.add_option("-u,--username", username, "Show jobs for a specific user");
     app.add_option("-g,--group", groupname, "Show jobs for a specific group");
     app.add_option("-a,--account", account, "Show jobs for a specific account");
     app.add_option("-p,--partition", partition, "Show jobs for a specific partition");
     app.add_option("-q,--qos", qosname, "Show jobs for a specific QoS");
     app.add_option("-R,--reservation", reservation, "Show jobs for a specific reservation");
-    //app.add_option("-w,--where", where_clause, "");
     CLI11_PARSE(app, argc, argv);
     
     // Load partition, node, and job information
@@ -156,11 +161,33 @@ int main(int argc, char** argv) {
         }
         slurm_hostlist_push(partition_nodes, part_ptr->nodes);
     }
-
+    
+    // Filter duplicate entries and get the final counts
     slurm_hostlist_uniq(running_nodes);
     slurm_hostlist_uniq(partition_nodes);
     int running_nodes_count = slurm_hostlist_count(running_nodes);
     int partition_nodes_count = slurm_hostlist_count(partition_nodes);
+
+    // Sort running jobs if an orderby directive was specify
+    if (orderby != "") {
+        std::transform(orderby.begin(), orderby.end(), orderby.begin(), toupper);
+        if (orderby == "REMAINING") {
+            std::stable_sort(jobs_running.begin(), jobs_running.end(), 
+                [](job_info_t *i, job_info_t *j){ return i->end_time < j->end_time; });
+        } else if (orderby == "REVERSEREMAINING") {
+            std::stable_sort(jobs_running.begin(), jobs_running.end(), 
+                [](job_info_t *i, job_info_t *j){ return i->end_time > j->end_time; });
+        } else if (orderby == "JOB") {
+            std::stable_sort(jobs_running.begin(), jobs_running.end(), 
+                [](job_info_t *i, job_info_t *j){ return i->job_id < j->job_id; });
+        } else if (orderby == "USER") {
+            std::stable_sort(jobs_running.begin(), jobs_running.end(), 
+                [](job_info_t *i, job_info_t *j){ return i->user_id < j->user_id; });
+        } else if (orderby == "STARTTIME") {
+            std::stable_sort(jobs_running.begin(), jobs_running.end(), 
+                [](job_info_t *i, job_info_t *j){ return i->start_time < j->start_time; });
+        }
+    }
 
     // Print the requested report
     if (summary) {
