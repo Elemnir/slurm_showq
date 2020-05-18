@@ -15,6 +15,17 @@
 #include "CLI11.hpp"
 
 
+std::string jobid_or_name(job_info_t *ji, bool name) {
+    std::stringstream ss;
+    if (name) {
+        ss << ji->name;
+    } else {
+        ss << ji->job_id;
+    }
+    return ss.str();
+}
+
+
 std::string uid2name(unsigned int uid) {
     passwd *pw = getpwuid(uid);
     return (pw) ? std::string(pw->pw_name) : std::to_string(uid);
@@ -78,7 +89,8 @@ int main(int argc, char** argv) {
 
     // Define and set up the cli flags and options for controlling the printing
     CLI::App app{"A Slurm-compatible implementation of Maui's showq."};
-    bool blocking = false, idle = false, running = false, completed = false, summary = false;
+    bool blocking = false, idle = false, running = false, completed = false;
+    bool summary = false, jobname = false, nodes = false;
     std::string partition, reservation, username, groupname, account, qosname, orderby;
     auto order_validator = CLI::IsMember(
         {"REMAINING", "REVERSEREMAINING", "JOB", "USER", "STARTTIME"}, CLI::ignore_case
@@ -89,6 +101,8 @@ int main(int argc, char** argv) {
     app.add_flag("-r,--running", running, "Show running jobs");
     app.add_flag("-c,--completed", completed, "Show completed jobs");
     app.add_flag("-s,--summary", summary, "Show workload summary");
+    app.add_flag("-n,--names", jobname, "Show job names instead of job IDs");
+    app.add_flag("-N,--nodes", nodes, "Show nodes allocated to running jobs");
     app.add_option("-o,--orderby", orderby, "Sort running jobs by a specific attribute")->check(order_validator);
     app.add_option("-u,--username", username, "Show jobs for a specific user");
     app.add_option("-g,--group", groupname, "Show jobs for a specific group");
@@ -168,7 +182,7 @@ int main(int argc, char** argv) {
     int running_nodes_count = slurm_hostlist_count(running_nodes);
     int partition_nodes_count = slurm_hostlist_count(partition_nodes);
 
-    // Sort running jobs if an orderby directive was specify
+    // Sort running jobs if an orderby directive was specified
     if (orderby != "") {
         std::transform(orderby.begin(), orderby.end(), orderby.begin(), toupper);
         if (orderby == "REMAINING") {
@@ -196,6 +210,7 @@ int main(int argc, char** argv) {
             << jobs_running.size() + jobs_idle.size() + jobs_blocked.size() << "\n\n";
         return 0;
     }
+    
     if (completed) {
         printf("\ncompleted jobs---------------------\n");
         printf("%-19s %-10s %-6s %3s %7s %2s %9s %9s %16s %5s %11s  %21s\n\n", 
@@ -203,8 +218,8 @@ int main(int argc, char** argv) {
             "MHOST", "PROCS", "WALLTIME", "COMPLETIONTIME"
         );
         for (job_info_t* ji : jobs_complete) {
-            printf("%-19u %-10s %-6u %3s %7.1f %2s %9s %9s %16s %5u %11s  %21s\n", 
-                ji->job_id, 
+            printf("%-19s %-10s %-6u %3s %7.1f %2s %9s %9s %16s %5u %11s  %21s\n", 
+                jobid_or_name(ji, jobname).substr(0,19).c_str(),
                 state2cstr(ji->job_state), 
                 ji->exit_code, 
                 std::string(ji->partition).substr(0,3).c_str(), 
@@ -217,11 +232,13 @@ int main(int argc, char** argv) {
                 duration2str(std::difftime(ji->end_time, ji->start_time)).c_str(),
                 timestamp2str(ji->end_time).c_str()
             );
+            if (nodes) printf("    Nodes: %s\n", ji->nodes);
         }
         std::cout << '\n' << jobs_complete.size() << " completed jobs\n\nTotal jobs: " 
             << jobs_complete.size() << "\n\n";
         return 0;
     } 
+    
     if (running) {
         printf("\nactive jobs------------------------\n");
         printf("%-19s %-10s %3s %7s %2s %9s %9s %16s %5s %11s  %21s\n\n", 
@@ -229,8 +246,8 @@ int main(int argc, char** argv) {
             "MHOST", "PROCS", "REMAINING", "STARTTIME"
         );
         for (job_info_t* ji : jobs_running) {
-            printf("%-19u %-10s %3s %7.1f %2s %9s %9s %16s %5u %11s  %21s\n", 
-                ji->job_id, 
+            printf("%-19s %-10s %3s %7.1f %2s %9s %9s %16s %5u %11s  %21s\n", 
+                jobid_or_name(ji, jobname).substr(0,19).c_str(),
                 state2cstr(ji->job_state),
                 std::string(ji->partition).substr(0,3).c_str(), 
                 calc_xfactor(ji),
@@ -242,6 +259,7 @@ int main(int argc, char** argv) {
                 duration2str(std::difftime(ji->end_time, std::time(nullptr))).c_str(),
                 timestamp2str(ji->start_time).c_str()
             );
+            if (nodes) printf("    Nodes: %s\n", ji->nodes);
         }
         std::cout << '\n' << jobs_running.size() << " active jobs\t\t" << running_nodes_count
             << " of " << partition_nodes_count << " nodes active      (" << std::setprecision(2)
@@ -249,6 +267,7 @@ int main(int argc, char** argv) {
             << "\n\nTotal jobs: " << jobs_running.size() << "\n\n";
         return 0;
     } 
+    
     if (idle) {
         printf("\neligible jobs----------------------\n");
         printf("%-19s %10s %3s %7s %2s %9s %9s %5s %11s  %21s\n\n", 
@@ -256,8 +275,8 @@ int main(int argc, char** argv) {
             "PROCS", "WCLIMIT", "SYSTEMQUEUETIME"
         );
         for (job_info_t* ji : jobs_idle) {
-            printf("%-19u %10u %3s %7.1f %2s %9s %9s %5u %11s  %21s\n", 
-                ji->job_id, 
+            printf("%-19s %10u %3s %7.1f %2s %9s %9s %5u %11s  %21s\n", 
+                jobid_or_name(ji, jobname).substr(0,19).c_str(),
                 ji->priority,  
                 std::string(ji->partition).substr(0,3).c_str(), 
                 calc_xfactor(ji),
@@ -274,14 +293,15 @@ int main(int argc, char** argv) {
         return 0;
 
     } 
+    
     if (blocking) {
         printf("\nblocked jobs-----------------------\n");
         printf("%-18s %8s %8s %10s %5s %11s  %21s\n\n",
             "JOBID", "USERNAME", "GROUP", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
         );
         for (job_info_t *ji : jobs_blocked) {
-            printf("%-18u %8s %8s %10s %5u %11s  %21s\n",
-                ji->job_id,
+            printf("%-18s %8s %8s %10s %5u %11s  %21s\n",
+                jobid_or_name(ji, jobname).substr(0,18).c_str(),
                 uid2name(ji->user_id).c_str(),
                 gid2name(ji->group_id).c_str(),
                 state2cstr(ji->job_state),
@@ -293,7 +313,6 @@ int main(int argc, char** argv) {
         std::cout << '\n' << jobs_blocked.size() << " blocked jobs\n\nTotal jobs: " 
             << jobs_blocked.size() << "\n\n";
         return 0;
-
     }
     
     printf("\nactive jobs------------------------\n");
@@ -301,27 +320,27 @@ int main(int argc, char** argv) {
         "JOBID", "USERNAME", "STATE", "PROCS", "REMAINING", "STARTTIME"
     ); 
     for (job_info_t *ji : jobs_running) {
-        printf("%-18u %8s %10s %5u %11s  %21s\n", 
-            ji->job_id, 
+        printf("%-18s %8s %10s %5u %11s  %21s\n", 
+            jobid_or_name(ji, jobname).substr(0,18).c_str(),
             uid2name(ji->user_id).c_str(),
             state2cstr(ji->job_state),
             ji->num_tasks,
             duration2str(std::difftime(ji->end_time, std::time(nullptr))).c_str(),
             timestamp2str(ji->start_time).c_str()
         );
+        if (nodes) printf("    Nodes: %s\n", ji->nodes);
     }
     std::cout << '\n' << jobs_running.size() << " active jobs\t\t" << running_nodes_count
             << " of " << partition_nodes_count << " nodes active      (" << std::setprecision(2)
             << static_cast<double>(running_nodes_count) / partition_nodes_count * 100 << "%)";
 
-    
     printf("\n\neligible jobs----------------------\n");
     printf("%-18s %8s %10s %5s %11s  %21s\n\n", 
         "JOBID", "USERNAME", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
     ); 
     for (job_info_t *ji : jobs_idle) {
-        printf("%-18u %8s %10s %5u %11s  %21s\n", 
-            ji->job_id, 
+        printf("%-18s %8s %10s %5u %11s  %21s\n", 
+            jobid_or_name(ji, jobname).substr(0,18).c_str(),
             uid2name(ji->user_id).c_str(),
             state2cstr(ji->job_state),
             ji->num_tasks,
@@ -336,8 +355,8 @@ int main(int argc, char** argv) {
         "JOBID", "USERNAME", "STATE", "PROCS", "WCLIMIT", "QUEUETIME"
     ); 
     for (job_info_t *ji : jobs_blocked) {
-        printf("%-18u %8s %10s %5u %11s  %21s\n", 
-            ji->job_id, 
+        printf("%-18s %8s %10s %5u %11s  %21s\n", 
+            jobid_or_name(ji, jobname).substr(0,18).c_str(),
             uid2name(ji->user_id).c_str(),
             state2cstr(ji->job_state),
             ji->num_tasks,
