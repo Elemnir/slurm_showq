@@ -2,6 +2,11 @@
  slurm_showq Changelog
 =======================
 
+Version 0.0.5
+-------------
+
+- Fixing a minor display bug
+
 Version 0.0.4
 -------------
 
