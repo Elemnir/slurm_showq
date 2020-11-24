@@ -69,11 +69,15 @@ std::string duration2str(int dur_sec) {
         dur_sec = -dur_sec;
         ss << '-';
     }
+    
     if (dur_sec / 60 / 60 / 24 > 0) {
-        ss << (dur_sec / 60 / 60 / 24) << ':' << std::setw(2);
+        ss << (dur_sec / 60 / 60 / 24) << ':' 
+           << std::setw(2) << std::setfill('0') << (dur_sec / 60 / 60) % 24 << ':';
+    } else {
+        ss << (dur_sec / 60 / 60) % 24 << ':';
     }
-    ss << (dur_sec / 60 / 60) % 24 << ':'
-       << std::setw(2) << std::setfill('0') << (dur_sec / 60) % 60 << ':' 
+
+    ss << std::setw(2) << std::setfill('0') << (dur_sec / 60) % 60 << ':' 
        << std::setw(2) << std::setfill('0') << (dur_sec) % 60;
     return ss.str();
 }
