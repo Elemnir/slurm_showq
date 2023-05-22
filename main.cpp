@@ -372,6 +372,5 @@ int main(int argc, char** argv) {
     std::cout << '\n' << jobs_blocked.size() << " blocked jobs\n\nTotal jobs: " 
         << jobs_blocked.size() + jobs_idle.size() + jobs_running.size() << "\n\n";
     
-    slurm_fini();
     return 0;
 }
