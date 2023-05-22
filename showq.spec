@@ -1,5 +1,5 @@
 Name:	    slurm-showq
-Version:	0.0.5
+Version:	0.0.7
 Release:	1%{?dist}
 Summary:	A Slurm-compatible implementation of Maui's showq command.
 

@@ -117,6 +117,7 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
     
     // Load partition, node, and job information
+    slurm_init((char *) nullptr);
     partition_info_msg_t *part_buffer_ptr = nullptr;
     node_info_msg_t *node_buffer_ptr = nullptr;
     job_info_msg_t *job_buffer_ptr = nullptr;
@@ -130,7 +131,7 @@ int main(int argc, char** argv) {
     // Filter and sort the jobs
     std::vector<job_info_t *> jobs_running, jobs_idle, jobs_blocked, jobs_complete;
     hostlist_t running_nodes = slurm_hostlist_create("");
-    for (int i = 0; i < job_buffer_ptr->record_count; i++) {
+    for (unsigned i = 0; i < job_buffer_ptr->record_count; i++) {
         job_info_t * job_ptr = &job_buffer_ptr->job_array[i];
         
         // If a filter is defined and doesn't hit, skip this job 
@@ -172,7 +173,7 @@ int main(int argc, char** argv) {
     
     // Collect nodes in the relevant partition(s) for utilization stats
     hostlist_t partition_nodes = slurm_hostlist_create("");
-    for (int i = 0; i < part_buffer_ptr->record_count; i++) {
+    for (unsigned i = 0; i < part_buffer_ptr->record_count; i++) {
         partition_info_t *part_ptr = &part_buffer_ptr->partition_array[i];
         if (partition != "" && std::string(part_ptr->name).find(partition) == std::string::npos) {
             continue;
@@ -370,5 +371,7 @@ int main(int argc, char** argv) {
     }
     std::cout << '\n' << jobs_blocked.size() << " blocked jobs\n\nTotal jobs: " 
         << jobs_blocked.size() + jobs_idle.size() + jobs_running.size() << "\n\n";
+    
+    slurm_fini();
     return 0;
 }
